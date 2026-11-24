@@ -12,7 +12,8 @@ LLM을 아이디어 정리, 코드 작성 보조, 오류 원인 분석에 활용
 - [프로젝트 계획](PLAN.md): 목표, 범위, 요구사항, 검증 기준, 기술 기준, 단계별 진행 계획
 - [상세 설계](DESIGN.md): 권한, 업무 규칙, 데이터 모델, 애플리케이션 및 관측 구조
 - [화면 상세 설계](SCREEN-SPEC.md): 화면별 정보·동작·권한·상태·검증 기준
-- [화면 와이어프레임](SCREEN-WIREFRAMES.html): 탭 전환형 시각 시안
+- [화면 와이어프레임 미리보기](https://ollydi.github.io/DevFlow/SCREEN-WIREFRAMES.html): GitHub Pages에서 보기
+- [와이어프레임 소스](SCREEN-WIREFRAMES.html): HTML 원본
 
 ## 기술 기준
 

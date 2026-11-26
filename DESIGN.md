@@ -1,6 +1,6 @@
 # DevFlow 상세 설계
 
-> 상태: 합의된 설계 기준 (세부 화면 설계 진행 전 검토용)  
+> 상태: 화면 설계 확정 · 데이터 모델 설계 초안  
 > 범위: 화면 상세, 사용자·권한, 업무 규칙, 데이터, 검증 기준, 애플리케이션 구조, 운영·관측  
 > 구현/퍼블리싱은 이 설계의 검토가 끝난 뒤 시작한다.
 
@@ -56,14 +56,15 @@ DevFlow는 한 팀이 여러 프로젝트의 개발 작업을 관리하고, 애�
 - 상태 변경은 상세 화면의 명시적 동작으로 수행하고, 변경 성공 후 상세와 목록에 갱신된 값을 보여준다.
 - 목록은 초기 버전에서 테이블 형식을 사용한다. 칸반 드래그 앤 드롭은 범위에서 제외한다.
 - 파일 다운로드는 권한 확인을 거치는 애플리케이션 경유 방식으로 한다.
+- 내 작업과 프로젝트 작업은 기본 목록 보기와 월간 캘린더 보기를 전환할 수 있다. 두 보기의 검색·필터 결과는 같아야 한다. 날짜 미지정 작업은 캘린더 옆 목록으로 제공한다. 모바일에서는 표를 작업 카드로, 월간 그리드를 날짜별 일정 목록으로 표시한다. 캘린더에서 드래그로 마감일을 변경하는 기능은 초기 범위에서 제외한다.
 
 ## 3. 사용자와 권한 모델
 
 ### 3.1 권한 단위
 
 - `ADMIN`: 팀 최고 관리자. 계정 활성/비활성, 전역 역할 부여, 모든 프로젝트·작업·첨부·이력 관리, 프로젝트 매니저 지정, 운영 상태 요약 조회를 수행한다. 일반 프로젝트 참여 신청과 초대는 해당 프로젝트 매니저가 처리한다. 마지막 활성 ADMIN을 강등/비활성화할 수 없고 자신의 권한을 낮출 수 없다.
-- `MEMBER`: 승인되어 팀에 소속된 일반 사용자로, 참여 프로젝트와 작업만 이용한다.
-- 프로젝트별 `ProjectMembership` 권한은 `MEMBER` 또는 `MANAGER`다. `MANAGER`는 프로젝트 매니저로서 프로젝트 설정·멤버·모듈 및 모듈 책임자 지정·작업·작업 책임자/참여자 배정·레이블을 관리하지만 팀 계정이나 전역 권한, 다른 프로젝트는 관리하지 못한다.
+- `USER`: 일반 계정. 프로젝트별 접근은 활성 프로젝트 참여 관계가 있어야 가능하다.
+- 프로젝트별 `ProjectMembership.projectRole`은 `PARTICIPANT` 또는 `PROJECT_MANAGER`다. `PROJECT_MANAGER`는 프로젝트 매니저로서 프로젝트 설정·멤버·모듈 및 모듈 책임자 지정·작업·작업 책임자/참여자 배정·레이블을 관리하지만 팀 계정이나 전역 권한, 다른 프로젝트는 관리하지 못한다.
 - 프로젝트 매니저는 프로젝트 전체를 관리한다. 모듈 책임자는 프로젝트 안의 특정 모듈을 관리한다. 작업 책임자는 개별 작업의 진행과 완료를 책임지는 한 사람이고, 작업 참여자는 그 작업에 함께 기여하는 여러 사람이다. 모듈 책임자도 작업 책임자나 작업 참여자를 겸할 수 있다.
 
 ### 3.2 권한 행렬
@@ -148,45 +149,93 @@ DevFlow는 한 팀이 여러 프로젝트의 개발 작업을 관리하고, 애�
 - 최근 변경은 변경 시각 내림차순 최대 10건으로 한다.
 - 통계는 화면 조회 시점의 현재 데이터 기준이며 초기에는 별도 집계 테이블을 두지 않는다.
 
-## 5. 데이터 설계 초안
+## 5. 데이터 모델 설계 초안
 
-### 5.1 엔티티
+### 5.1 모델링 범위와 역할 분리
 
-| 엔티티 | 주요 속성 | 관계/메모 |
+초기 버전은 하나의 팀만 운영하므로 별도의 `Team` 엔터티는 두지 않는다. 사용자의 전역 권한과 프로젝트별 권한은 범위가 다르므로 하나의 역할 필드에 합치지 않는다.
+
+- 사용자 전역 역할은 `User.globalRole`로 구분한다. 현재 후보는 일반 계정 `USER`와 서비스 최고 관리자 `ADMIN`이다.
+- 프로젝트 역할은 `ProjectMembership.projectRole`에 둔다. 후보는 `PARTICIPANT`(프로젝트 참여자)와 `PROJECT_MANAGER`(프로젝트 매니저)다.
+- 모듈 책임자는 모듈과 사용자 사이의 프로젝트 범위가 있는 연결이다. `Module.leadUserId`가 같은 프로젝트의 활성 참여자인지 검증한다.
+- 작업 책임자는 작업당 0명 또는 1명이고 `Task.taskOwnerId`로 표현한다. 작업 참여자는 `TaskParticipant` 연결 테이블로 0명 이상을 표현한다.
+
+### 5.2 후보 엔터티
+
+| 엔터티 | 주요 속성(초안) | 책임과 관계 |
 |---|---|---|
-| User | id, email, passwordHash, displayName, globalRole, active, createdAt, updatedAt | 팀 단위 사용자. 이메일은 정규화 후 유일 |
-| Project | id, name, description, status, startDate, dueDate, createdBy, archivedAt | 작업의 상위 범위 |
-| ProjectMembership | projectId, userId, projectRole, joinedAt | 승인 완료된 프로젝트 참여 관계, projectRole은 MEMBER/MANAGER(프로젝트 매니저), 복합 유일 제약 |
-| ProjectJoinRequest | id, projectId, userId, status, requestedAt, reviewedBy, reviewedAt | 공개 가입 신청의 프로젝트별 승인 대기/승인/거절 상태 |
-| ProjectInvitation | id, projectId, invitedEmail, tokenHash, invitedBy, expiresAt, acceptedAt | 프로젝트 매니저 발급 초대, 토큰 원문 미저장·만료·1회 사용 |
-| Module | id, projectId, name, description, leadUserId, createdAt, updatedAt | 프로젝트 소속 모듈, leadUserId는 프로젝트 활성 멤버 중 모듈 책임자 한 명 |
-| Task | id, projectId, moduleId, title, description, type, status, priority, taskOwnerId, createdBy, startDate, dueDate, archivedAt, createdAt, updatedAt, version | 프로젝트 소속, 모듈 선택 연결, 작업 책임자 한 명, 낙관적 잠금 버전 |
-| TaskParticipant | taskId, userId, addedBy, joinedAt | 작업 참여자 다대다 연결, (taskId,userId) 유일 |
-| Label | id, projectId, name, color | 프로젝트 내 이름 유일 |
-| TaskLabel | taskId, labelId | 다대다 연결 |
-| Comment | id, taskId, authorId, body, createdAt, updatedAt, deletedAt | 작업 댓글 |
-| Attachment | id, taskId, uploaderId, originalName, storageKey, mediaType, sizeBytes, checksum, createdAt | 바이너리는 DB 외부 저장소 |
-| TaskHistory | id, taskId, actorId, fieldName, oldValue, newValue, traceId, createdAt | 변경 불변 이력 |
-| Notification | id, recipientId, taskId, type, message, readAt, createdAt | 앱 내 알림 이벤트, 추후 채널별 전달 대상 |
-| TaskReminderPreference | id, taskId, userId, enabled, leadTimeMinutes, createdAt, updatedAt | 사용자별 작업 마감 알림 설정, (taskId,userId) 유일 |
+| `User` | id, email, passwordHash, displayName, globalRole, active, createdAt, updatedAt | 로그인 계정과 전역 역할. 이메일은 정규화해 유일하게 관리 |
+| `Project` | id, name, description, status, startDate, dueDate, createdBy, createdAt, updatedAt, archivedAt | 프로젝트 경계. 작업·모듈·멤버십·신청·초대·레이블을 소유 |
+| `ProjectMembership` | projectId, userId, projectRole, status, joinedAt, endedAt | 승인된 프로젝트 참여 관계. projectRole은 PARTICIPANT/PROJECT_MANAGER, `(projectId,userId)` 유일 |
+| `ProjectJoinRequest` | id, projectId, userId, status, requestedAt, reviewedBy, reviewedAt | 공개 가입 사용자의 프로젝트 참여 신청과 검토 이력 |
+| `ProjectInvitation` | id, projectId, invitedEmail, tokenHash, invitedBy, expiresAt, acceptedBy, acceptedAt, revokedAt | 프로젝트 매니저가 발급하는 이메일 대상 초대. 토큰 원문은 저장하지 않음 |
+| `Module` | id, projectId, name, description, leadUserId, createdAt, updatedAt, archivedAt | 한 프로젝트에 속하는 업무 영역. 책임자는 선택적으로 한 명 지정 |
+| `Task` | id, projectId, moduleId, title, description, type, status, priority, taskOwnerId, createdBy, startDate, dueDate, archivedAt, createdAt, updatedAt, version | 프로젝트에 속하고 모듈은 선택. 책임자는 0~1명. `version`은 동시 수정 감지용 |
+| `TaskParticipant` | taskId, userId, addedBy, joinedAt | 작업 참여자 연결. `(taskId,userId)` 유일 |
+| `Label` | id, projectId, name, color | 프로젝트 안에서 관리하는 레이블 |
+| `TaskLabel` | taskId, labelId | 작업과 레이블의 다대다 연결 |
+| `Comment` | id, taskId, authorId, body, createdAt, updatedAt, deletedAt | 작업 댓글과 선택적 소프트 삭제 정보 |
+| `Attachment` | id, taskId, uploaderId, originalName, storageKey, mediaType, sizeBytes, checksum, createdAt | 파일 메타데이터. 실제 바이너리는 외부 저장소에 보관 |
+| `TaskHistory` | id, taskId, actorId, fieldName, oldValue, newValue, traceId, createdAt | 작업 변경을 추가 전용으로 기록 |
+| `Notification` | id, recipientId, taskId, type, message, readAt, createdAt | 앱 내 수신함 항목. 작업이 없는 시스템 알림도 허용할지 구현 설계에서 결정 |
+| `TaskReminderPreference` | taskId, userId, enabled, leadTimeMinutes, createdAt, updatedAt | 사용자별 작업 마감 알림 설정. `(taskId,userId)` 유일 |
 
-초기에는 하나의 팀을 운영하지만, 한 사용자는 여러 프로젝트에 참여할 수 있다. `ProjectMembership`에서 사용자와 프로젝트의 조합을 유일하게 관리하고, 프로젝트별 역할(`MEMBER`/프로젝트 매니저)은 서로 독립적이다. 예를 들어 한 사용자는 한 프로젝트에서 일반 참여자이고 다른 프로젝트에서는 프로젝트 매니저일 수 있다. 프로젝트 참여는 명시적 멤버십으로 제한한다.
+### 5.3 관계와 카디널리티
 
-### 5.2 데이터 무결성과 조회
+```text
+User 1 ── N ProjectMembership N ── 1 Project
+User 1 ── N ProjectJoinRequest N ── 1 Project
+User 1 ── N ProjectInvitation N ── 1 Project
+Project 1 ── N Module
+Project 1 ── N Task
+Project 1 ── N Label
+Module 0..1 ── N Task
+User 0..1 ── N Module                (모듈 책임자)
+User 0..1 ── N Task                  (작업 책임자)
+Task 1 ── N TaskParticipant N ── 1 User
+Task 1 ── N Comment
+Task 1 ── N Attachment
+Task 1 ── N TaskHistory
+Task 1 ── N TaskReminderPreference N ── 1 User
+Task N ── M Label                    (TaskLabel 경유)
+User 1 ── N Notification
+```
 
-- 외래 키와 필수 컬럼을 DB 제약으로 보장한다. 이메일, (project_id, user_id), (project_id, label.name)에 유일 제약을 둔다.
-- 작업 목록 주요 필터를 위해 `project_id + status`, `project_id + task_owner_id`, `module_id`, `project_id + due_date`, `updated_at` 인덱스를 검토한다. 실제 쿼리와 실행 계획을 본 뒤 확정한다.
-- Task의 `version`으로 동시 수정 충돌을 감지한다. 충돌 시 최신 정보를 다시 확인하도록 안내한다.
-- 첨부 메타데이터와 작업 변경은 DB 트랜잭션으로 처리한다. 파일 저장소 작업 실패/DB 실패 보상 처리 규칙을 구현 설계에서 구체화한다.
-- TaskHistory는 생성 후 수정하지 않는다. 정정이 필요한 경우 별도 이력으로 남긴다.
+- 프로젝트 참여자와 프로젝트는 다대다이며, 연결 정보와 프로젝트 역할은 `ProjectMembership`에 둔다. 사용자의 프로젝트 역할은 서로 독립적이다.
+- 모듈과 작업은 각자 프로젝트를 참조한다. 작업의 모듈이 지정되면 그 모듈은 반드시 같은 프로젝트 소속이어야 한다.
+- 책임자·참여자·모듈 책임자는 지정 시점에 해당 프로젝트의 활성 `ProjectMembership`을 가져야 한다. 활성 여부와 프로젝트 일치는 서비스 규칙으로 검증하고 외래 키로 고아 참조를 방지한다.
+- 참여 신청은 승인되기 전 멤버십을 만들지 않는다. 승인은 `ProjectMembership`을 생성하거나 기존 비활성 멤버십을 활성화한다.
+- 초대 수락은 토큰 해시, 초대 이메일, 만료·취소·사용 여부를 검증한 후 멤버십을 만든다. 초대 토큰은 한 번만 사용할 수 있다.
 
+### 5.4 무결성·인덱스 후보
+
+- 외래 키와 필수 여부는 데이터베이스 제약으로 보장한다. 이메일은 정규화한 값에 유일 제약을 둔다.
+- `ProjectMembership(project_id,user_id)`, `TaskParticipant(task_id,user_id)`, `TaskLabel(task_id,label_id)`, `TaskReminderPreference(task_id,user_id)`는 각각 중복 연결을 막는다.
+- 같은 프로젝트 안의 레이블 이름 중복은 허용하지 않는 방향을 제안한다. 모듈 이름 중복 정책은 미확정이다.
+- 프로젝트와 모듈, 프로젝트와 작업의 관계가 서로 다른 프로젝트를 가리키지 않도록 서비스 검증을 기본으로 하고, 가능한 관계는 복합 외래 키로 보강한다.
+- 재신청 이력을 보존하면서 같은 사용자의 동일 프로젝트 대기 신청은 하나만 허용하는 방안을 제안한다. PostgreSQL 부분 유일 인덱스 등 구체적인 제약 방식은 신청 상태를 확정한 뒤 정한다.
+- 주요 조회 인덱스 후보는 `ProjectMembership(user_id,status)`, `Task(project_id,status,due_date)`, `Task(project_id,task_owner_id)`, `Task(module_id,status)`, `Task(updated_at)`, `Notification(recipient_id,read_at,created_at)`이다. 실제 쿼리와 실행 계획을 바탕으로 조정한다.
+- 작업에 사용자별 알림 설정이 없으면 기본값 24시간 전을 적용한다. 사용자가 기본값을 바꾼 경우 프로젝트/서비스 전역 기본값과 구별해 저장할지 여부는 알림 정책 확정 시 결정한다.
+- 보관은 `archivedAt` 또는 명시적 상태로 관리하고 참조와 이력을 보존한다. 영구 삭제 및 연결 레코드 정리 정책은 구현 설계에서 정한다.
+- ID 자료형, 생성 시각 표준(UTC), enum 저장 방식, `oldValue/newValue`의 DB 형식은 PostgreSQL/JPA 매핑 설계에서 정한다.
+
+### 5.5 아직 확정이 필요한 모델 규칙
+
+1. 한 프로젝트에 프로젝트 매니저를 여러 명 지정할 수 있는가? 현재 `ProjectMembership` 구조는 여러 명을 지원하며, 운영 안정성 측면에서는 복수 매니저를 권장한다.
+2. 작업 책임자를 작업 참여자에도 중복 등록할 수 있는가? 현재 두 관계는 별도로 표현되므로 중복 가능성이 있다. 책임자는 참여자 목록에서 제외할지 규칙이 필요하다.
+3. ADMIN의 프로젝트 데이터 접근은 전체 조회·수정까지 포함하는가, 아니면 계정·전역 권한·프로젝트 매니저 지정에 한정하는가? 계획 문서와 상세 설계의 범위가 다르게 읽힐 수 있어 권한 행렬을 대조해 확정해야 한다.
+4. 거절된 참여 신청 후 재신청을 허용할지, 초대와 신청이 같은 프로젝트에서 동시에 존재할 수 있는지 정해야 한다.
+5. 프로젝트 멤버를 제거한 뒤 기존 작업의 책임자·참여자·댓글·이력을 어떻게 보존하고 표시할지 정해야 한다. 기본 제안은 멤버십을 비활성화하고 과거 기록은 보존하는 것이다.
+6. 같은 프로젝트 안에서 모듈 이름 중복을 허용할지 정해야 한다.
+
+이 초안은 화면 설계와 기능 요구사항에서 도출한 개념 모델이다. 위 미확정 규칙을 검토한 뒤 ERD, 컬럼 자료형·제약, JPA 연관관계와 조회 인덱스를 확정한다.
 ## 6. 요구사항 검증 기준
 
 | ID | 요구사항 | 검증 가능한 완료 조건 |
 |---|---|---|
 | AUTH-01 | 로그인 | 유효 자격 증명은 세션을 만들고, 잘못된 자격 증명은 일반화된 오류를 보여주며 비밀 정보를 노출하지 않는다. |
 | AUTH-02 | 접근 제어 | 비로그인은 보호 화면에서 로그인으로 유도되고, 로그인 후 원래 경로를 복원한다. |
-| AUTH-03 | 역할 | MEMBER가 관리자 URL을 직접 요청해도 403 또는 안전한 접근 거부가 발생하고 데이터가 변경되지 않는다. |
+| AUTH-03 | 역할 | 일반 계정(USER)이 관리자 URL을 직접 요청해도 403 또는 안전한 접근 거부가 발생하고 데이터가 변경되지 않는다. |
 | AUTH-04 | 프로젝트 가입 승인 | 신청자는 프로젝트 매니저 승인 전 해당 프로젝트 데이터에 접근할 수 없고, 매니저 초대는 관리 프로젝트에만 유효하며 만료·재사용이 거부된다. |
 | PROJ-01 | 프로젝트 범위 | 비멤버가 프로젝트·작업·첨부 ID를 직접 요청해도 조회/변경이 차단된다. |
 | TASK-01 | 작업 입력 | 제목 길이, 필수값, 날짜 순서 위반은 저장되지 않고 필드 오류가 표시된다. |
@@ -267,6 +316,10 @@ DevFlow는 한 팀이 여러 프로젝트의 개발 작업을 관리하고, 애�
 4. 엔드포인트, 예외 응답, 권한 규칙과 검증 항목을 상세화한다.
 5. 그 다음 퍼블리싱을 시작하고 화면 흐름을 확인한다.
 6. 화면 승인 후 백엔드 및 운영 기능을 단계별로 구현한다.
+
+
+
+
 
 
 

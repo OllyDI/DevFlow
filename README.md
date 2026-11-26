@@ -13,7 +13,7 @@ LLM을 아이디어 정리, 코드 작성 보조, 오류 원인 분석에 활용
 - [상세 설계](DESIGN.md): 권한, 업무 규칙, 데이터 모델, 애플리케이션 및 관측 구조
 - [화면 상세 설계](SCREEN-SPEC.md): 화면별 정보·동작·권한·상태·검증 기준
 - [화면 와이어프레임 미리보기](https://ollydi.github.io/DevFlow/SCREEN-WIREFRAMES.html): GitHub Pages에서 보기
-- [와이어프레임 소스](SCREEN-WIREFRAMES.html): HTML 원본
+- [와이어프레임 소스](SCREEN-WIREFRAMES.html): 데스크톱·모바일 화면과 목록/캘린더 보기
 
 ## 기술 기준
 
@@ -30,6 +30,9 @@ Java 21, Spring Boot 4.2.0, Gradle 9.x, Spring MVC, Thymeleaf, Spring Data JPA, 
 
 ## 현재 상태
 
-요구사항과 상세 설계를 정리하고 있습니다. 화면 상세 설계와 검토가 끝난 뒤 퍼블리싱 및 구현을 시작합니다.
+요구사항과 화면 설계를 확정했고, 현재 상세 설계의 개념 데이터 모델 초안을 검토하고 있습니다. 미확정 데이터 정책과 엔터티 관계를 정리한 뒤 ERD와 API·아키텍처 설계를 진행합니다. 퍼블리싱과 구현은 관련 설계 검토가 끝난 뒤 시작합니다.
+
+
+
 
 
